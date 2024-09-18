@@ -1,0 +1,139 @@
+import random
+
+BOARD_SIZE = 6
+
+class ShipPlacementError(Exception):
+    pass
+
+class AlreadyShotError(Exception):
+    pass
+
+class BattleshipGame:
+    def __init__(self):
+        self.player_board = [["O"] * BOARD_SIZE for _ in range(BOARD_SIZE)]
+        self.ai_board = [["O"] * BOARD_SIZE for _ in range(BOARD_SIZE)]
+        self.player_guess_board = [["O"] * BOARD_SIZE for _ in range(BOARD_SIZE)]
+        self.ai_guess_board = [["O"] * BOARD_SIZE for _ in range(BOARD_SIZE)]
+        self.player_ships = []
+        self.ai_ships = []
+        self.setup_ships()
+
+    def print_boards(self):
+        print("Поле игрока:")
+        for row in self.player_board:
+            print(" ".join(row))
+        print("\nПоле ИИ (скрытое для игрока):")
+        for row in self.player_guess_board:
+            print(" ".join(row))
+        print()
+
+    def setup_ships(self):
+        ship_sizes = [3, 2, 2, 1, 1, 1, 1]
+        for size in ship_sizes:
+            self.place_ship(self.player_board, self.player_ships, size)
+            self.place_ship(self.ai_board, self.ai_ships, size)
+
+    def place_ship(self, board, ships, size):
+        placed = False
+        while not placed:
+            orientation = random.choice(["H", "V"])
+            if orientation == "H":
+                row = random.randint(0, BOARD_SIZE - 1)
+                col = random.randint(0, BOARD_SIZE - size)
+            else:
+                row = random.randint(0, BOARD_SIZE - size)
+                col = random.randint(0, BOARD_SIZE - 1)
+
+            if self.can_place_ship(board, row, col, size, orientation):
+                ship_cells = []
+                for i in range(size):
+                    if orientation == "H":
+                        board[row][col + i] = "S"
+                        ship_cells.append((row, col + i))
+                    else:
+                        board[row + i][col] = "S"
+                        ship_cells.append((row + i, col))
+                ships.append(ship_cells)
+                placed = True
+
+    def can_place_ship(self, board, row, col, size, orientation):
+        for i in range(size):
+            r = row + i if orientation == "V" else row
+            c = col + i if orientation == "H" else col
+            if board[r][c] == "S":
+                return False
+        return True
+
+    def is_valid_guess(self, guess_row, guess_col, guess_board):
+        if guess_row < 0 or guess_row >= BOARD_SIZE or guess_col < 0 or guess_col >= BOARD_SIZE:
+            raise ShipPlacementError("Выстрел за пределы поля!")
+        if guess_board[guess_row][guess_col] in ["X", "T"]:
+            raise AlreadyShotError("Вы уже стреляли в эту клетку!")
+
+    def take_shot(self, guess_row, guess_col, board, guess_board, ships):
+        hit = False
+        for ship in ships:
+            if (guess_row, guess_col) in ship:
+                hit = True
+                guess_board[guess_row][guess_col] = "X"
+                ship.remove((guess_row, guess_col))
+                if not ship:
+                    print("Корабль потоплен!")
+                else:
+                    print("Попадание!")
+                break
+        if not hit:
+            guess_board[guess_row][guess_col] = "T"
+            print("Мимо!")
+        return hit
+
+    def check_victory(self, ships):
+        return all(len(ship) == 0 for ship in ships)
+
+    def player_turn(self):
+        while True:
+            try:
+                guess_row = int(input("Угадайте строку (0-5): "))
+                guess_col = int(input("Угадайте столбец (0-5): "))
+                self.is_valid_guess(guess_row, guess_col, self.player_guess_board)
+                break
+            except ValueError:
+                print("Неверный ввод, попробуйте еще раз!")
+            except AlreadyShotError as e:
+                print(e)
+            except ShipPlacementError as e:
+                print(e)
+
+        return self.take_shot(guess_row, guess_col, self.ai_board, self.player_guess_board, self.ai_ships)
+
+    def ai_turn(self):
+        while True:
+            guess_row = random.randint(0, BOARD_SIZE - 1)
+            guess_col = random.randint(0, BOARD_SIZE - 1)
+            try:
+                self.is_valid_guess(guess_row, guess_col, self.ai_guess_board)
+                break
+            except AlreadyShotError:
+                continue
+
+        print(f"ИИ стреляет по координатам: ({guess_row}, {guess_col})")
+        return self.take_shot(guess_row, guess_col, self.player_board, self.ai_guess_board, self.player_ships)
+
+    def play(self):
+        while True:
+            self.print_boards()
+            print("Ход игрока:")
+            if self.player_turn():
+                if self.check_victory(self.ai_ships):
+                    print("Вы победили!")
+                    break
+            print("Ход ИИ:")
+            if self.ai_turn():
+                if self.check_victory(self.player_ships):
+                    print("ИИ победил!")
+                    break
+
+
+if __name__ == "__main__":
+    game = BattleshipGame()
+    game.play()
